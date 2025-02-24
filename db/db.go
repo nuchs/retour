@@ -1,3 +1,9 @@
+// Package db provides SQLite-based storage for shell command history.
+//
+// It handles the persistence of command execution records, including their
+// timestamps, working directories, and exit statuses. The package provides
+// a simple interface for storing and querying command history, with support
+// for filtering by time range, working directory, and command success/failure.
 package db
 
 import (
@@ -8,22 +14,43 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Record represents a single command history entry
+// Record represents a single command history entry in the database.
+// Each Record contains the full context of a command's execution,
+// including when and where it was run, and whether it succeeded.
 type Record struct {
-	ID              int64
-	Command         string
-	Timestamp       time.Time
+	// ID is the unique identifier for this record in the database
+	ID int64
+
+	// Command is the main command that was executed, without arguments
+	Command string
+
+	// Timestamp records when the command was executed
+	Timestamp time.Time
+
+	// WorkingDirectory is the directory from which the command was run
 	WorkingDirectory string
-	ExitStatus      int
-	Arguments       string
+
+	// ExitStatus is the command's exit code (0 for success, non-zero for failure)
+	ExitStatus int
+
+	// Arguments contains any additional arguments passed to the command
+	Arguments string
 }
 
-// DB wraps the SQLite database connection
+// DB provides an interface to the SQLite database storing command history.
+// It handles connection management, schema creation, and provides methods
+// for storing and querying command records.
 type DB struct {
 	conn *sql.DB
 }
 
-// New creates a new database connection and ensures the schema is set up
+// New creates a new database connection and ensures the schema is set up.
+// It takes a connectionString parameter which should be a valid SQLite
+// database path. The function will create the database file if it doesn't
+// exist and set up the necessary tables and indexes.
+//
+// Returns a new DB instance or an error if the connection or schema
+// creation fails.
 func New(connectionString string) (*DB, error) {
 	conn, err := sql.Open("sqlite3", connectionString)
 	if err != nil {
@@ -39,7 +66,9 @@ func New(connectionString string) (*DB, error) {
 	return db, nil
 }
 
-// Close closes the database connection
+// Close closes the database connection and releases any associated resources.
+// It should be called when the database is no longer needed to prevent
+// resource leaks.
 func (db *DB) Close() error {
 	return db.conn.Close()
 }
@@ -65,7 +94,12 @@ func (db *DB) ensureSchema() error {
 	return err
 }
 
-// Insert adds a new command record to the database
+// Insert adds a new command record to the database.
+// The Record should contain all required fields: Command, Timestamp,
+// WorkingDirectory, ExitStatus, and optionally Arguments.
+// The ID field will be automatically set by the database.
+//
+// Returns an error if the insert operation fails.
 func (db *DB) Insert(record *Record) error {
 	query := `
 	INSERT INTO history (command, timestamp, working_directory, exit_status, arguments)
@@ -83,7 +117,13 @@ func (db *DB) Insert(record *Record) error {
 	return err
 }
 
-// Query executes a custom SQL query and returns the results
+// Query executes a custom SQL query and returns the results as a slice of Records.
+// This method allows for custom queries beyond the standard filters provided by
+// QueryFiltered. The query must return all fields of the history table in the
+// correct order (id, command, timestamp, working_directory, exit_status, arguments).
+//
+// The args parameter allows for safe parameterization of the query.
+// Returns the matching records or an error if the query fails.
 func (db *DB) Query(query string, args ...interface{}) ([]Record, error) {
 	rows, err := db.conn.Query(query, args...)
 	if err != nil {
@@ -111,7 +151,15 @@ func (db *DB) Query(query string, args ...interface{}) ([]Record, error) {
 	return records, rows.Err()
 }
 
-// QueryFiltered returns records based on the provided filters
+// QueryFiltered returns records based on the provided filters.
+// It provides a high-level interface for common query patterns:
+//
+// - timeRange: how far back to look (e.g., 24h for last day)
+// - resultFilter: filter by command success/failure ("success", "failed", "all")
+// - workingDir: filter by specific working directory (empty string for all)
+// - limit: maximum number of records to return
+//
+// Returns matching records ordered by timestamp (newest first) or an error if the query fails.
 func (db *DB) QueryFiltered(timeRange time.Duration, resultFilter string, workingDir string, limit int) ([]Record, error) {
 	query := `
 	SELECT id, command, timestamp, working_directory, exit_status, arguments
