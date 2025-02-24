@@ -10,8 +10,7 @@ My motivation for doing this is that I want to be able to search through my enti
 2. The timestamp
 3. The working directory
 4. The exit status
-5. The number of arguments
-6. The arguments themselves
+5. The arguments themselves
 
 ## Querying the database
 We want to be able to query the database in different ways.
@@ -26,11 +25,21 @@ We want to be able to query the database in different ways.
 
 ## Structure
 The database is a sqlite database.
+it should have a single table called history
+The table should have the following columns
+- id
+- command
+- timestamp
+- working directory
+- exit status
+- arguments
+It should have indexs on the columns command, timestamp and working directory
 
 There should be a .config file in the $HOME/.config/retour/ which contains 
 - connection string
 - retention period
 - exclusion list (a set of regexes)
+- limit
 The format for the config file is toml
 Thre should be a config reader which parses the config file and command line options into a config struct.
 there should be the following command line options
@@ -38,13 +47,23 @@ there should be the following command line options
 - -r --result followed by one of success, failed, all (defaults to all)
 - -c --config followed by the config file location
 - -t --time-range followed by one of 'today', 'yesterday', 'thelastweek', 'alltime' (defaults to no time period)
+- -l --limit followed by an integer (defaults to 100)
+- -w --working-directory followed by a string (defaults to no working directory)
 
 
 There should be a package to interface with the db
 - It should be able to create the database if it doesn't exist
 - It should be able to create the table if it doesn't exist
 - It should be able to insert a record
+- It should be able to query the database with a user provided query
+- It should be able to query the db with some precanned queries which are parametrized by
+  - a time period
+  - a result filter
+  - the working directory
+  - the number of results to return
+- Queries should return results in descending order by timestamp
 - It should hide all the implemnation details of the db from the consumer only exposing the the functionality required by the application
+
 
 The fuzzy matcher should be implemented as a separate package, it should be independent of the database and the display mode.
 - a fuzzy matcher should be initialised with a set of records

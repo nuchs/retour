@@ -20,7 +20,7 @@ const (
 	// InteractiveMode indicates the application should run in an interactive shell
 	InteractiveMode Mode = "interactive"
 	// QueryMode indicates the application should execute a SQL query and exit
-	QueryMode       Mode = "query"
+	QueryMode Mode = "query"
 )
 
 // TimeRange represents the time period over which to filter command history.
@@ -42,11 +42,11 @@ type ResultFilter string
 
 const (
 	// AllResults includes both successful and failed commands
-	AllResults     ResultFilter = "all"
+	AllResults ResultFilter = "all"
 	// SuccessResults includes only commands that completed successfully
 	SuccessResults ResultFilter = "success"
 	// FailedResults includes only commands that failed
-	FailedResults  ResultFilter = "failed"
+	FailedResults ResultFilter = "failed"
 )
 
 // Config holds all configuration for the application
@@ -58,6 +58,8 @@ type Config struct {
 
 	// Command filtering
 	ExclusionPatterns []string `toml:"exclusion_patterns"`
+	Limit             int      `toml:"limit"`
+	WorkingDirectory  string
 
 	// Runtime options
 	Mode      Mode
@@ -119,6 +121,12 @@ func parseCommandLine(config *Config, args []string) (string, error) {
 	flags.StringVar(&config.Query, "q", "", "SQL query to execute")
 	flags.StringVar(&config.Query, "query", "", "SQL query to execute")
 
+	flags.IntVar(&config.Limit, "l", 100, "Limit the number of results returned")
+	flags.IntVar(&config.Limit, "limit", 100, "Limit the number of results returned")
+
+	flags.StringVar(&config.WorkingDirectory, "w", "", "Filter by working directory")
+	flags.StringVar(&config.WorkingDirectory, "working-directory", "", "Filter by working directory")
+
 	result := ""
 	flags.StringVar(&result, "r", string(AllResults), "Filter results (success, failed, all)")
 	flags.StringVar(&result, "result", string(AllResults), "Filter results (success, failed, all)")
@@ -167,6 +175,16 @@ func validateConfig(config *Config) error {
 		return fmt.Errorf("invalid result filter: %s", config.Result)
 	}
 
+	if config.WorkingDirectory != "" {
+		if _, err := os.Stat(config.WorkingDirectory); err != nil {
+			return fmt.Errorf("invalid working directory: %w", err)
+		}
+	}
+
+	if config.Limit <= 0 {
+		return fmt.Errorf("limit must be greater than 0, got %d", config.Limit)
+	}
+
 	return nil
 }
 
@@ -181,7 +199,9 @@ Options:
   -r, --result string     Filter results by execution status (success|failed|all) [default: all]
   -t, --time-range string Time range to search (today|yesterday|thelastweek|alltime) [default: alltime]
   -c, --config string     Config file path [default: $HOME/.config/retour/config.toml]
-  -h, --help             Show this help message
+  -l, --limit int         Limit the number of results returned [default: 100]
+  -w, --working-directory Filter by working directory
+  -h, --help              Show this help message
 
 Examples:
   retour                           # Interactive mode

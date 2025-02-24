@@ -182,6 +182,7 @@ func TestConfigFile(t *testing.T) {
 		wantConn   string
 		wantRet    string
 		wantExcl   []string
+		wantLimit  int
 	}{
 		{
 			name:       "Empty config",
@@ -189,6 +190,7 @@ func TestConfigFile(t *testing.T) {
 			wantConn:   "",
 			wantRet:    "",
 			wantExcl:   []string{},
+			wantLimit:  100,
 		},
 		{
 			name: "Full config",
@@ -196,19 +198,22 @@ func TestConfigFile(t *testing.T) {
 connection_string = "test.db"
 retention_period = "30d"
 exclusion_patterns = ["^sudo", "^ssh"]
+limit = 50
 `,
-			wantConn: "test.db",
-			wantRet:  "30d",
-			wantExcl: []string{"^sudo", "^ssh"},
+			wantConn:  "test.db",
+			wantRet:   "30d",
+			wantExcl:  []string{"^sudo", "^ssh"},
+			wantLimit: 50,
 		},
 		{
 			name: "Partial config",
 			configFile: `
 connection_string = "test.db"
 `,
-			wantConn: "test.db",
-			wantRet:  "",
-			wantExcl: []string{},
+			wantConn:  "test.db",
+			wantRet:   "",
+			wantExcl:  []string{},
+			wantLimit: 100,
 		},
 	}
 
@@ -235,6 +240,9 @@ connection_string = "test.db"
 						t.Errorf("ExclusionPattern[%d] = %v, want %v", i, got, want)
 					}
 				}
+			}
+			if got := config.Limit; got != tt.wantLimit {
+				t.Errorf("Limit = %v, want %v", got, tt.wantLimit)
 			}
 		})
 	}
@@ -264,6 +272,16 @@ func TestBadCommandLine(t *testing.T) {
 			want:       "failed to read config file: open invalid: file does not exist",
 			skipConfig: true,
 		},
+		{
+			name: "Invalid limit",
+			args: []string{"cmd", "--limit", "0"},
+			want: "limit must be greater than 0, got 0",
+		},
+		{
+			name: "Invalid working directory",
+			args: []string{"cmd", "--working-directory", "/nonexistent/path"},
+			want: "invalid working directory: stat /nonexistent/path: no such file or directory",
+		},
 	}
 
 	for _, tt := range tests {
@@ -280,6 +298,83 @@ func TestBadCommandLine(t *testing.T) {
 			}
 			if errMsg := err.Error(); errMsg != tt.want {
 				t.Errorf("Got = %v, want %v", errMsg, tt.want)
+			}
+		})
+	}
+}
+
+func TestLimit(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want int
+	}{
+		{
+			name: "Default values",
+			args: []string{"cmd"},
+			want: 100,
+		},
+		{
+			name: "Short form limit",
+			args: []string{"cmd", "-l", "50"},
+			want: 50,
+		},
+		{
+			name: "Long form limit",
+			args: []string{"cmd", "--limit", "25"},
+			want: 25,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsys := makeConfigFile(t)
+
+			config, err := config.LoadConfig(fsys, tt.args)
+			if err != nil {
+				t.Fatalf("LoadConfig() unexpected error = %v", err)
+			}
+
+			if got := config.Limit; got != tt.want {
+				t.Errorf("Limit = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+func TestLimitAndWorkingDir(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "Default values",
+			args: []string{"cmd"},
+			want: "",
+		},
+		{
+			name: "Short form working directory",
+			args: []string{"cmd", "-w", "/tmp"},
+			want: "/tmp",
+		},
+		{
+			name: "Long form working directory",
+			args: []string{"cmd", "--working-directory", "/tmp"},
+			want: "/tmp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsys := makeConfigFile(t)
+
+			config, err := config.LoadConfig(fsys, tt.args)
+			if err != nil {
+				t.Fatalf("LoadConfig() unexpected error = %v", err)
+			}
+
+			if got := config.WorkingDirectory; got != tt.want {
+				t.Errorf("WorkingDirectory = %v, want %v", got, tt.want)
 			}
 		})
 	}
