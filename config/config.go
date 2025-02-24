@@ -4,6 +4,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -12,6 +13,11 @@ import (
 
 	"github.com/BurntSushi/toml"
 )
+
+// getDefaultDBPath returns the default path for the SQLite database file
+func getDefaultDBPath() string {
+	return filepath.Join(".local", "share", "retour", "history.db")
+}
 
 // Mode represents the operating mode of the application.
 type Mode string
@@ -102,13 +108,23 @@ func LoadConfig(fsys fs.FS, args []string) (*Config, error) {
 
 func readConfig(config *Config, fsys fs.FS, configPath string) error {
 	configFile, err := fsys.Open(configPath)
-	if err == nil {
-		defer configFile.Close()
-		if _, err := toml.NewDecoder(configFile).Decode(config); err != nil {
-			return fmt.Errorf("failed to decode config file: %w", err)
-		}
-	} else {
+	if errors.Is(err, fs.ErrNotExist) {
+		// Set default connection string when no config file exists
+		config.ConnectionString = getDefaultDBPath()
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
+	}
+	defer configFile.Close()
+
+	if _, err := toml.NewDecoder(configFile).Decode(config); err != nil {
+		return fmt.Errorf("failed to decode config file: %w", err)
+	}
+
+	// Set default connection string if not specified in config
+	if config.ConnectionString == "" {
+		config.ConnectionString = getDefaultDBPath()
 	}
 
 	return nil
@@ -150,6 +166,13 @@ func parseCommandLine(config *Config, args []string) (string, error) {
 		config.Mode = QueryMode
 	}
 
+	// Check if config file exists only if explicitly specified
+	if configPath != defaultConfigPath {
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			return "", fmt.Errorf("config file %q does not exist", configPath)
+		}
+	}
+
 	return configPath, nil
 }
 
@@ -183,6 +206,10 @@ func validateConfig(config *Config) error {
 
 	if config.Limit <= 0 {
 		return fmt.Errorf("limit must be greater than 0, got %d", config.Limit)
+	}
+
+	if config.ConnectionString == "" {
+		return errors.New("connection string is empty")
 	}
 
 	return nil

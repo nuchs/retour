@@ -187,7 +187,7 @@ func TestConfigFile(t *testing.T) {
 		{
 			name:       "Empty config",
 			configFile: "",
-			wantConn:   "",
+			wantConn:   ".local/share/retour/history.db",
 			wantRet:    "",
 			wantExcl:   []string{},
 			wantLimit:  100,
@@ -269,7 +269,7 @@ func TestBadCommandLine(t *testing.T) {
 		{
 			name:       "Bad config path",
 			args:       []string{"cmd", "-c", "invalid"},
-			want:       "failed to read config file: open invalid: file does not exist",
+			want:       "config file \"invalid\" does not exist",
 			skipConfig: true,
 		},
 		{

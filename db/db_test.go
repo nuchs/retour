@@ -1,9 +1,11 @@
-package db
+package db_test
 
 import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/nuchs/retour/db"
 )
 
 func TestDB(t *testing.T) {
@@ -16,27 +18,27 @@ func TestDB(t *testing.T) {
 	tmpFile.Close()
 
 	// Open the database
-	db, err := New(tmpFile.Name())
+	database, err := db.New(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create database: %v", err)
 	}
-	defer db.Close()
+	defer database.Close()
 
 	// Test inserting a record
-	record := &Record{
-		Command:         "ls -la",
-		Timestamp:       time.Now(),
+	record := &db.Record{
+		Command:          "ls -la",
+		Timestamp:        time.Now(),
 		WorkingDirectory: "/home/user",
-		ExitStatus:      0,
-		Arguments:       "-la",
+		ExitStatus:       0,
+		Arguments:        "-la",
 	}
 
-	if err := db.Insert(record); err != nil {
+	if err := database.Insert(record); err != nil {
 		t.Errorf("Failed to insert record: %v", err)
 	}
 
 	// Test querying records
-	records, err := db.Query("SELECT * FROM history")
+	records, err := database.Query("SELECT * FROM history")
 	if err != nil {
 		t.Errorf("Failed to query records: %v", err)
 	}
@@ -50,7 +52,7 @@ func TestDB(t *testing.T) {
 	}
 
 	// Test filtered query
-	records, err = db.QueryFiltered(24*time.Hour, "success", "/home/user", 10)
+	records, err = database.QueryFiltered(24*time.Hour, "success", "/home/user", 10)
 	if err != nil {
 		t.Errorf("Failed to query filtered records: %v", err)
 	}
@@ -60,7 +62,7 @@ func TestDB(t *testing.T) {
 	}
 
 	// Test no results
-	records, err = db.QueryFiltered(24*time.Hour, "failed", "/home/user", 10)
+	records, err = database.QueryFiltered(24*time.Hour, "failed", "/home/user", 10)
 	if err != nil {
 		t.Errorf("Failed to query filtered records: %v", err)
 	}
