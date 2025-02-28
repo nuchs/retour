@@ -49,7 +49,8 @@ func main() {
 	}
 
 	// Create and run the UI
-	p := tea.NewProgram(NewUI(records))
+	filter := NewFilter(records)
+	p := tea.NewProgram(NewUI(filter))
 	m, err := p.Run()
 	if err != nil {
 		fmt.Printf("Error running program: %v\n", err)

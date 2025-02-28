@@ -28,18 +28,16 @@ var (
 
 // Model represents the UI state and data
 type Model struct {
-	records     []Record // All available records
-	filtered    []Record // Records after filtering
-	cursor      int      // Current selection in the list
-	filterInput string   // Current filter text
-	textCursor  int      // Current cursor position in filter input
-	selected    bool     // Whether a selection has been made
-	height      int      // Terminal height
+	filter     *Filter // Filter for records
+	cursor     int     // Current selection in the list
+	textCursor int     // Current cursor position in filter input
+	selected   bool    // Whether a selection has been made
+	height     int     // Terminal height
 }
 
 // Records returns all records (for testing)
 func (m Model) Records() []Record {
-	return m.filtered
+	return m.filter.FilteredRecords()
 }
 
 // Cursor returns the current cursor position (for testing)
@@ -47,11 +45,10 @@ func (m Model) Cursor() int {
 	return m.cursor
 }
 
-// New creates a new UI model with the given records
-func NewUI(records []Record) Model {
+// New creates a new UI model with the given filter
+func NewUI(filter *Filter) Model {
 	return Model{
-		records:    records,
-		filtered:   records, // Initially show all records
+		filter:     filter,
 		cursor:     0,
 		textCursor: 0,
 	}
@@ -89,7 +86,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyDown, tea.KeyCtrlN:
-			if m.cursor < len(m.filtered)-1 {
+			if m.cursor < len(m.filter.FilteredRecords())-1 {
 				m.cursor++
 			}
 
@@ -98,11 +95,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case tea.KeyBackspace:
-			if len(m.filterInput) > 0 && m.textCursor > 0 {
+			if len(m.filter.Filter()) > 0 && m.textCursor > 0 {
 				// Remove the character before the cursor
-				m.filterInput = m.filterInput[:m.textCursor-1] + m.filterInput[m.textCursor:]
+				m.filter.RemoveCharBeforeCursor(m.textCursor)
 				m.textCursor--
-				m.updateFilter()
 			}
 
 		case tea.KeyLeft:
@@ -111,7 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyRight:
-			if m.textCursor < len(m.filterInput) {
+			if m.textCursor < len(m.filter.Filter()) {
 				m.textCursor++
 			}
 
@@ -121,36 +117,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeyCtrlE:
 			// End of line
-			m.textCursor = len(m.filterInput)
+			m.textCursor = len(m.filter.Filter())
 
 		case tea.KeyCtrlW:
 			// Kill word backward
 			if m.textCursor > 0 {
-				newPos := findWordStart(m.filterInput, m.textCursor)
-				m.filterInput = m.filterInput[:newPos] + m.filterInput[m.textCursor:]
+				newPos := findWordStart(m.filter.Filter(), m.textCursor)
+				m.filter.RemoveTextBeforeCursor(newPos, m.textCursor)
 				m.textCursor = newPos
-				m.updateFilter()
 			}
 
 		case tea.KeyCtrlK:
 			// Kill to end of line
-			if m.textCursor < len(m.filterInput) {
-				m.filterInput = m.filterInput[:m.textCursor]
-				m.updateFilter()
+			if m.textCursor < len(m.filter.Filter()) {
+				m.filter.RemoveTextAfterCursor(m.textCursor)
 			}
 
 		case tea.KeySpace:
 			// Insert space at cursor position
-			m.filterInput = m.filterInput[:m.textCursor] + " " + m.filterInput[m.textCursor:]
+			m.filter.InsertCharAtCursor(' ', m.textCursor)
 			m.textCursor++
-			m.updateFilter()
 
 		case tea.KeyRunes:
 			// Insert the characters at the cursor position
-			text := string(msg.Runes)
-			m.filterInput = m.filterInput[:m.textCursor] + text + m.filterInput[m.textCursor:]
-			m.textCursor += len(text)
-			m.updateFilter()
+			m.filter.InsertTextAtCursor(string(msg.Runes), m.textCursor)
+			m.textCursor += len(msg.Runes)
 		}
 
 	case tea.WindowSizeMsg:
@@ -177,13 +168,13 @@ func (m Model) View() string {
 
 	// Calculate which items to show
 	start := 0
-	if len(m.filtered) > maxItems && m.cursor >= maxItems {
+	if len(m.filter.FilteredRecords()) > maxItems && m.cursor >= maxItems {
 		start = m.cursor - maxItems + 1
 	}
-	end := min(start+maxItems, len(m.filtered))
+	end := min(start+maxItems, len(m.filter.FilteredRecords()))
 
 	// Render visible items
-	for i, record := range m.filtered[start:end] {
+	for i, record := range m.filter.FilteredRecords()[start:end] {
 		// Format the record
 		line := formatRecord(record)
 
@@ -198,8 +189,8 @@ func (m Model) View() string {
 
 	// Add the filter input at the bottom with cursor
 	prefix := "Filter: "
-	beforeCursor := m.filterInput[:m.textCursor]
-	afterCursor := m.filterInput[m.textCursor:]
+	beforeCursor := m.filter.Filter()[:m.textCursor]
+	afterCursor := m.filter.Filter()[m.textCursor:]
 	cursorChar := "█"
 	if len(afterCursor) > 0 {
 		cursorChar = string(afterCursor[0])
@@ -214,10 +205,10 @@ func (m Model) View() string {
 
 // Selected returns the currently selected record, if any
 func (m Model) Selected() (Record, bool) {
-	if !m.selected || len(m.filtered) == 0 {
+	if !m.selected || len(m.filter.FilteredRecords()) == 0 {
 		return Record{}, false
 	}
-	return m.filtered[m.cursor], true
+	return m.filter.FilteredRecords()[m.cursor], true
 }
 
 // formatRecord formats a record for display
@@ -229,10 +220,9 @@ func formatRecord(r Record) string {
 	return status + " " + r.Command + " " + r.Arguments
 }
 
-// updateFilter applies the current filter to the records
-// Currently a no-op as requested
-func (m *Model) updateFilter() {
-	// No-op for now
-	m.filtered = m.records
-	m.cursor = 0
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

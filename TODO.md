@@ -51,7 +51,7 @@ there should be the following command line options
 - -w --working-directory followed by a string (defaults to no working directory)
 
 
-There should be a package to interface with the db
+There should be a file to interface with the db
 - It should be able to create the database if it doesn't exist
 - It should be able to create the table if it doesn't exist
 - It should be able to insert a record
@@ -65,13 +65,16 @@ There should be a package to interface with the db
 - It should hide all the implemnation details of the db from the consumer only exposing the the functionality required by the application
 
 
-The fuzzy matcher should be implemented as a separate package, it should be independent of the database and the display mode.
+The fuzzy matcher should be implemented in the main package in a seaprate file (filter.go), it should be independent of the database and the display mode.
 - a fuzzy matcher should be initialised with a set of records
 - it should have an intially empty filter
-- the initial set of matches should be the entore set of records
-- it should be possible to add characters to the filter
+- it should expose the current filter and the filtered set of records
+- it should have a method to update the filter
+- the initial set of matches should be the entire set of records
+- The ui should query the fuzzy matcher for to get the current filter and the filtered set of records rather than storing it as state
+- the first iteration of the filter should just check if each record contains the filter string in the command or the arguments
 
-There should be a package for the ui
+There should be a file for the ui
 - it should be a tui
 - it shoudl use bubbletea
 - it should take a set of results (the model)

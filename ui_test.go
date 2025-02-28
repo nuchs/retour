@@ -34,8 +34,9 @@ func TestNew(t *testing.T) {
 		},
 	}
 
-	// Create model
-	model := rt.NewUI(records)
+	// Create filter and model
+	filter := rt.NewFilter(records)
+	model := rt.NewUI(filter)
 
 	// Verify initial state
 	if len(model.Records()) != len(records) {
@@ -61,7 +62,8 @@ func TestNavigation(t *testing.T) {
 		},
 	}
 
-	model := rt.NewUI(records)
+	filter := rt.NewFilter(records)
+	model := rt.NewUI(filter)
 
 	// Test down navigation
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
@@ -86,7 +88,8 @@ func TestSelection(t *testing.T) {
 		},
 	}
 
-	model := rt.NewUI(records)
+	filter := rt.NewFilter(records)
+	model := rt.NewUI(filter)
 
 	// Select the item
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -114,7 +117,8 @@ func TestFilterStub(t *testing.T) {
 		},
 	}
 
-	model := rt.NewUI(records)
+	filter := rt.NewFilter(records)
+	model := rt.NewUI(filter)
 
 	// Add some filter text
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("test")})
