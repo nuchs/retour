@@ -71,12 +71,16 @@ The fuzzy matcher should be implemented as a separate package, it should be inde
 - the initial set of matches should be the entore set of records
 - it should be possible to add characters to the filter
 
-There should be a package for the display mode
+There should be a package for the ui
 - it should be a tui
-- it should be able to display the results of a query
-- it should be able to display the results of a fuzzy match
-- it should be able to navigate through the results
-- it should be able to select a result
+- it shoudl use bubbletea
+- it should take a set of results (the model)
+- it should display the results with the most recent results at the bottom and the oldest results at the top
+- there should be a text input control at the bottom of the screen which can be used to filter the results
+- when i type the characters should be added to the text input and the models filfer should be updated.
+- if the set of records in the model changes the view should be updated
+- it should be able to navigate through the results using the arrow keys or ctrl-n ctrl-p
+- it should be able to select a result with return
 - it should be able to print the selected result to the terminal
 
 This should all be written in a testable way in golang
